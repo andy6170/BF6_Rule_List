@@ -2,136 +2,104 @@
   const pluginId = "bf-rule-navigator";
   const plugin = BF2042Portal.Plugins.getPlugin(pluginId);
 
-  let panel = null;
-  let toggleBtn = null;
-
-  function getWorkspace() {
-    return _Blockly.getMainWorkspace();
+  function waitForBlocklyReady(cb) {
+    const interval = setInterval(() => {
+      try {
+        if (window._Blockly && _Blockly.getMainWorkspace?.()) {
+          clearInterval(interval);
+          cb(_Blockly.getMainWorkspace());
+        }
+      } catch (_) {}
+    }, 100);
   }
 
-  /* -----------------------------------------------------
-     RULE DISCOVERY
-  ----------------------------------------------------- */
-  function getRules(ws) {
-    return ws.getTopBlocks(true);
-  }
+  function createToggleButton(toolboxDiv) {
+    if (document.getElementById("bfRuleToggle")) return;
 
-  function getRuleLabel(block, index) {
-    // Try to extract a visible name, fallback to type
-    let name = block.getFieldValue?.("RULE_NAME")
-      || block.getFieldValue?.("NAME")
-      || block.type;
-
-    return `${index + 1}. ${name}`;
-  }
-
-  /* -----------------------------------------------------
-     NAVIGATION
-  ----------------------------------------------------- */
-  function focusRule(block) {
-    const ws = getWorkspace();
-    if (!ws) return;
-    ws.centerOnBlock(block.id);
-    block.select();
-  }
-
-  /* -----------------------------------------------------
-     UI CREATION
-  ----------------------------------------------------- */
-  function createUI() {
-    const toolbox = document.querySelector(".blocklyToolboxDiv");
-    if (!toolbox) return;
-
-    // Toggle button
-    toggleBtn = document.createElement("div");
-    toggleBtn.textContent = "Rules ▸";
-    toggleBtn.style.cssText = `
+    const btn = document.createElement("button");
+    btn.id = "bfRuleToggle";
+    btn.textContent = "Rules";
+    btn.style.cssText = `
       position: absolute;
-      top: 8px;
-      right: -48px;
-      width: 44px;
-      height: 28px;
-      background: #2c2c2c;
+      right: -32px;
+      top: 10px;
+      width: 28px;
+      height: 80px;
+      writing-mode: vertical-rl;
+      background: #2b2b2b;
       color: #fff;
-      font-size: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      border: 1px solid #444;
       cursor: pointer;
-      border-radius: 4px;
-      user-select: none;
+      z-index: 999;
+    `;
+
+    toolboxDiv.parentElement.appendChild(btn);
+    return btn;
+  }
+
+  function createPanel() {
+    let panel = document.getElementById("bfRulePanel");
+    if (panel) return panel;
+
+    panel = document.createElement("div");
+    panel.id = "bfRulePanel";
+    panel.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 400px;
+      max-height: 70vh;
+      background: #1e1e1e;
+      color: #fff;
+      border: 1px solid #444;
+      padding: 10px;
+      overflow-y: auto;
+      display: none;
       z-index: 1000;
     `;
-
-    toolbox.style.position = "relative";
-    toolbox.appendChild(toggleBtn);
-
-    // Panel
-    panel = document.createElement("div");
-    panel.style.cssText = `
-      position: absolute;
-      top: 0;
-      left: 100%;
-      width: 260px;
-      height: 100%;
-      background: #1f1f1f;
-      color: #fff;
-      overflow-y: auto;
-      padding: 8px;
-      display: none;
-      z-index: 999;
-      box-shadow: 2px 0 6px rgba(0,0,0,0.4);
-    `;
-    toolbox.appendChild(panel);
-
-    toggleBtn.onclick = () => {
-      panel.style.display = panel.style.display === "none" ? "block" : "none";
-      if (panel.style.display === "block") {
-        rebuildList();
-      }
-    };
+    document.body.appendChild(panel);
+    return panel;
   }
 
-  /* -----------------------------------------------------
-     PANEL CONTENT
-  ----------------------------------------------------- */
-  function rebuildList() {
-    panel.innerHTML = "<b>Rules</b><hr style='opacity:.3'>";
+  function listRules(ws, panel) {
+    panel.innerHTML = "<h3>Rules</h3>";
+    const blocks = ws.getTopBlocks(true);
 
-    const ws = getWorkspace();
-    if (!ws) return;
+    let index = 1;
+    blocks.forEach(block => {
+      if (block.type !== "ruleBlock") return;
 
-    const rules = getRules(ws);
-
-    rules.forEach((block, i) => {
       const item = document.createElement("div");
-      item.textContent = getRuleLabel(block, i);
-      item.style.cssText = `
-        padding: 6px 8px;
-        margin-bottom: 4px;
-        background: #2a2a2a;
-        border-radius: 4px;
-        cursor: pointer;
-      `;
+      item.textContent = `${index}. ${block.getFieldValue("NAME") || "Unnamed Rule"}`;
+      item.style.cursor = "pointer";
+      item.style.padding = "4px";
 
-      item.onmouseenter = () => item.style.background = "#3a3a3a";
-      item.onmouseleave = () => item.style.background = "#2a2a2a";
-
-      item.onclick = () => focusRule(block);
+      item.onclick = () => {
+        ws.centerOnBlock(block.id);
+        panel.style.display = "none";
+      };
 
       panel.appendChild(item);
+      index++;
     });
   }
 
-  /* -----------------------------------------------------
-     INIT
-  ----------------------------------------------------- */
   plugin.initializeWorkspace = function () {
-    try {
-      createUI();
-      console.info("[RuleNavigator] Initialized");
-    } catch (e) {
-      console.error("[RuleNavigator] Init failed:", e);
-    }
+    waitForBlocklyReady((ws) => {
+      const toolboxDiv = document.querySelector(".blocklyToolboxDiv");
+      if (!toolboxDiv) return;
+
+      const btn = createToggleButton(toolboxDiv);
+      const panel = createPanel();
+
+      btn.onclick = () => {
+        listRules(ws, panel);
+        panel.style.display =
+          panel.style.display === "none" ? "block" : "none";
+      };
+
+      console.info("[Rule Navigator] Initialized safely");
+    });
   };
 })();

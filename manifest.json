@@ -1,0 +1,8 @@
+{
+  "id": "bf-portal-copy-paste-plugin",
+  "name": "BF6 Rule List",
+  "version": "0.1.4",
+  "description": "Displays a list and numbers all rules in the editor for troubleshooting",
+  "main": "index.js",
+  "author": "andy6170"
+}

@@ -1,7 +1,7 @@
 {
   "id": "bf-rule-list",
   "name": "BF6 Rule List",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Displays a list and numbers all rules in the editor for troubleshooting",
   "main": "index.js",
   "author": "andy6170"

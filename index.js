@@ -139,7 +139,7 @@
     pos.y * scale - metrics.viewHeight / 2 + block.height * scale / 2;
 
   ws.scroll(targetX, targetY);
-  ws.setSelected(block);
+  block.select();
 };
 
 

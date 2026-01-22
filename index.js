@@ -126,22 +126,26 @@
     item.onclick = () => {
   panel.style.display = "none";
 
-  // Find the MOD parent
-  let mod = block;
-  while (mod && mod.getSurroundParent()) {
-    mod = mod.getSurroundParent();
-  }
+  const ws = block.workspace;
 
-  if (!mod || mod.type !== "modBlock") return;
+  // Absolute position in workspace coordinates
+  const xy = block.getRelativeToSurfaceXY();
 
-  // ✅ Center on the MOD (this is the key fix)
-  ws.centerOnBlock(mod.id);
+  const metrics = ws.getMetrics();
+  const scale = ws.scale;
 
-  // Small timeout ensures scrolling finishes before selection
-  setTimeout(() => {
-    block.select();
-  }, 0);
+  // Center block in viewport
+  const scrollX =
+    xy.x * scale - metrics.viewWidth / 2 + block.width * scale / 2;
+  const scrollY =
+    xy.y * scale - metrics.viewHeight / 2 + block.height * scale / 2;
+
+  ws.scroll(scrollX, scrollY);
+
+  // Proper Blockly selection API
+  block.select();
 };
+
 
 
     list.appendChild(item);

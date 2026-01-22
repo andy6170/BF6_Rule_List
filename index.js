@@ -130,7 +130,7 @@
     item.onclick = () => {
   panel.style.display = "none";
 
-  // 1️⃣ Ensure MOD is expanded
+  // Expand MOD
   let mod = block;
   while (mod && mod.getSurroundParent()) {
     mod = mod.getSurroundParent();
@@ -139,19 +139,60 @@
     mod.setCollapsed(false);
   }
 
-  // 2️⃣ Force a render so sizes are correct
-  ws.render();
-
-  // 3️⃣ Select block FIRST
   block.select();
 
-  // 4️⃣ Wait TWO frames (this is the key)
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      ws.centerOnBlock(block.id);
-    });
+  waitForBlockGeometry(ws, block, () => {
+    centerBlockManually(ws, block);
   });
 };
+
+
+    function waitForBlockGeometry(ws, block, cb, tries = 0) {
+  if (tries > 30) return; // fail silently
+
+  try {
+    const svg = block.getSvgRoot?.();
+    if (!svg) throw 0;
+
+    const bbox = svg.getBBox();
+    if (
+      Number.isFinite(bbox.x) &&
+      Number.isFinite(bbox.y) &&
+      bbox.width > 0 &&
+      bbox.height > 0
+    ) {
+      cb();
+      return;
+    }
+  } catch {}
+
+  requestAnimationFrame(() =>
+    waitForBlockGeometry(ws, block, cb, tries + 1)
+  );
+}
+
+
+
+    function centerBlockManually(ws, block) {
+  const metrics = ws.getMetrics();
+  const scale = ws.scale;
+
+  const svg = block.getSvgRoot();
+  const bbox = svg.getBBox();
+
+  const targetX =
+    bbox.x * scale -
+    metrics.viewWidth / 2 +
+    (bbox.width * scale) / 2;
+
+  const targetY =
+    bbox.y * scale -
+    metrics.viewHeight / 2 +
+    (bbox.height * scale) / 2;
+
+  ws.scrollbar.set(targetX, targetY);
+}
+
 
 
 

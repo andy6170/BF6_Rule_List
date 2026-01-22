@@ -130,7 +130,7 @@
     item.onclick = () => {
   panel.style.display = "none";
 
-  // Expand MOD
+  // 1️⃣ Expand MOD
   let mod = block;
   while (mod && mod.getSurroundParent()) {
     mod = mod.getSurroundParent();
@@ -139,12 +139,15 @@
     mod.setCollapsed(false);
   }
 
+  // 2️⃣ Select block (important for highlight)
   block.select();
 
-  waitForBlockGeometry(ws, block, () => {
-    centerBlockManually(ws, block);
-  });
+  // 3️⃣ Let Blockly finish layout, then center
+  setTimeout(() => {
+    ws.centerOnBlock(block.id);
+  }, 0);
 };
+
 
 
     function waitForBlockGeometry(ws, block, cb, tries = 0) {

@@ -130,40 +130,29 @@
     item.onclick = () => {
   panel.style.display = "none";
 
-  // 1️⃣ Find MOD parent
+  // 1️⃣ Ensure MOD is expanded
   let mod = block;
   while (mod && mod.getSurroundParent()) {
     mod = mod.getSurroundParent();
   }
-  if (!mod || mod.type !== "modBlock") return;
-
-  // 2️⃣ Ensure MOD is expanded
-  if (mod.isCollapsed?.()) {
+  if (mod?.isCollapsed?.()) {
     mod.setCollapsed(false);
   }
 
-  // 3️⃣ Center on the MOD (Blockly-safe)
-  ws.centerOnBlock(mod.id);
+  // 2️⃣ Force a render so sizes are correct
+  ws.render();
 
-  // 4️⃣ After Blockly finishes scrolling, adjust to rule
+  // 3️⃣ Select block FIRST
+  block.select();
+
+  // 4️⃣ Wait TWO frames (this is the key)
   requestAnimationFrame(() => {
-    const modXY = mod.getRelativeToSurfaceXY();
-    const ruleXY = block.getRelativeToSurfaceXY();
-    const metrics = ws.getMetrics();
-    const scale = ws.scale || 1;
-
-    const dx = (ruleXY.x - modXY.x) * scale;
-    const dy = (ruleXY.y - modXY.y) * scale;
-
-    ws.scroll(
-      ws.scrollX + dx,
-      ws.scrollY + dy
-    );
-
-    // 5️⃣ Select rule (now visible & correct)
-    block.select();
+    requestAnimationFrame(() => {
+      ws.centerOnBlock(block.id);
+    });
   });
 };
+
 
 
 

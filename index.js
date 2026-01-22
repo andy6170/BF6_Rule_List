@@ -124,10 +124,24 @@
     };
 
     item.onclick = () => {
-      panel.style.display = "none";
-      ws.centerOnBlock(block.id);
-      ws.setSelected(block);
-    };
+  panel.style.display = "none";
+
+  // Get absolute workspace position (accounts for MOD parent)
+  const pos = block.getRelativeToSurfaceXY();
+
+  const metrics = ws.getMetrics();
+  const scale = ws.scale;
+
+  // Calculate scroll so block is centered in view
+  const targetX =
+    pos.x * scale - metrics.viewWidth / 2 + block.width * scale / 2;
+  const targetY =
+    pos.y * scale - metrics.viewHeight / 2 + block.height * scale / 2;
+
+  ws.scroll(targetX, targetY);
+  ws.setSelected(block);
+};
+
 
     list.appendChild(item);
     index++;

@@ -87,52 +87,61 @@
   /* -----------------------------------------------------
      Populate Rule List (MOD ONLY)
   ----------------------------------------------------- */
-  function populateRules(ws, panel) {
-    const list = panel.querySelector("#bfRuleList");
-    list.innerHTML = "";
+ function populateRules(ws, panel) {
+  const list = panel.querySelector("#bfRuleList");
+  list.innerHTML = "";
 
-    const topBlocks = ws.getTopBlocks(true);
-    let index = 1;
+  const allBlocks = ws.getAllBlocks(false);
+  let index = 1;
 
-    topBlocks.forEach(block => {
-      if (block.type !== "ruleBlock") return;
+  allBlocks.forEach(block => {
+    if (block.type !== "ruleBlock") return;
 
-      const ruleName =
-        block.getFieldValue?.("NAME") ||
-        block.getFieldValue?.("RULE_NAME") ||
-        "Unnamed Rule";
+    const parent = block.getSurroundParent?.();
+    if (!parent) return;
 
-      const item = document.createElement("div");
-      item.textContent = `${index}. ${ruleName}`;
-      item.style.cssText = `
-        padding: 6px;
-        cursor: pointer;
-        border-radius: 4px;
-      `;
+    // ✅ ONLY rules inside the MOD container
+    if (parent.type !== "modBlock") return;
 
-      item.onmouseenter = () => {
-        item.style.background = "#6f63b6";
-      };
-      item.onmouseleave = () => {
-        item.style.background = "transparent";
-      };
+    const ruleName =
+      block.getFieldValue?.("NAME") ||
+      block.getFieldValue?.("RULE_NAME") ||
+      "Unnamed Rule";
 
-      item.onclick = () => {
-        panel.style.display = "none";
+    const item = document.createElement("div");
+    item.textContent = `${index}. ${ruleName}`;
+    item.style.cssText = `
+      padding: 6px;
+      cursor: pointer;
+      border-radius: 4px;
+    `;
 
-        // Correct centering logic (this is the key part)
-        ws.centerOnBlock(block.id);
-        ws.setSelected(block);
-      };
+    item.onmouseenter = () => {
+      item.style.background = "#6f63b6";
+    };
+    item.onmouseleave = () => {
+      item.style.background = "transparent";
+    };
 
-      list.appendChild(item);
-      index++;
-    });
+    item.onclick = () => {
+      panel.style.display = "none";
+      ws.centerOnBlock(block.id);
+      ws.setSelected(block);
+    };
 
-    if (index === 1) {
-      list.innerHTML = `<div style="opacity:0.7;padding:6px;">No rules found in this MOD</div>`;
-    }
+    list.appendChild(item);
+    index++;
+  });
+
+  if (index === 1) {
+    list.innerHTML = `
+      <div style="opacity:0.7;padding:6px;">
+        No rules found inside this MOD
+      </div>
+    `;
   }
+}
+
 
   /* -----------------------------------------------------
      Context Menu Registration

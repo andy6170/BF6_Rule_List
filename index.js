@@ -1,105 +1,137 @@
 (function () {
-  const pluginId = "bf-rule-navigator";
+  const pluginId = "bf-rules-navigator-plugin";
   const plugin = BF2042Portal.Plugins.getPlugin(pluginId);
 
-  function waitForBlocklyReady(cb) {
-    const interval = setInterval(() => {
-      try {
-        if (window._Blockly && _Blockly.getMainWorkspace?.()) {
-          clearInterval(interval);
-          cb(_Blockly.getMainWorkspace());
-        }
-      } catch (_) {}
-    }, 100);
+  let panelEl = null;
+  let buttonEl = null;
+
+  function getWorkspace() {
+    return _Blockly.getMainWorkspace
+      ? _Blockly.getMainWorkspace()
+      : Blockly.getMainWorkspace();
   }
 
-  function createToggleButton(toolboxDiv) {
-    if (document.getElementById("bfRuleToggle")) return;
-
-    const btn = document.createElement("button");
-    btn.id = "bfRuleToggle";
-    btn.textContent = "Rules";
-    btn.style.cssText = `
-      position: absolute;
-      right: -32px;
-      top: 10px;
-      width: 28px;
-      height: 80px;
-      writing-mode: vertical-rl;
-      background: #2b2b2b;
-      color: #fff;
-      border: 1px solid #444;
-      cursor: pointer;
-      z-index: 999;
-    `;
-
-    toolboxDiv.parentElement.appendChild(btn);
-    return btn;
+  /* --------------------------------------------------
+     Get top-level RULE blocks inside the MOD
+  -------------------------------------------------- */
+  function getRuleBlocks(ws) {
+    return ws.getTopBlocks(false).filter(b => {
+      // BF Portal rule blocks are top-level and have no output/previous
+      return !b.outputConnection && !b.previousConnection;
+    });
   }
 
-  function createPanel() {
-    let panel = document.getElementById("bfRulePanel");
-    if (panel) return panel;
+  /* --------------------------------------------------
+     Center workspace on a block
+  -------------------------------------------------- */
+  function focusBlock(ws, block) {
+    const xy = block.getRelativeToSurfaceXY();
+    const metrics = ws.getMetrics();
 
-    panel = document.createElement("div");
-    panel.id = "bfRulePanel";
-    panel.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 400px;
-      max-height: 70vh;
-      background: #1e1e1e;
-      color: #fff;
-      border: 1px solid #444;
-      padding: 10px;
-      overflow-y: auto;
-      display: none;
-      z-index: 1000;
-    `;
-    document.body.appendChild(panel);
-    return panel;
+    const x = xy.x - metrics.viewWidth / 2;
+    const y = xy.y - metrics.viewHeight / 2;
+
+    ws.scroll(x, y);
+    block.select();
   }
 
-  function listRules(ws, panel) {
-    panel.innerHTML = "<h3>Rules</h3>";
-    const blocks = ws.getTopBlocks(true);
+  /* --------------------------------------------------
+     Create floating panel
+  -------------------------------------------------- */
+  function createPanel(ws) {
+    if (panelEl) {
+      panelEl.remove();
+      panelEl = null;
+      return;
+    }
 
-    let index = 1;
-    blocks.forEach(block => {
-      if (block.type !== "ruleBlock") return;
+    panelEl = document.createElement("div");
+    panelEl.style.position = "absolute";
+    panelEl.style.top = "40px";
+    panelEl.style.right = "0";
+    panelEl.style.width = "260px";
+    panelEl.style.maxHeight = "70vh";
+    panelEl.style.background = "#1e1e1e";
+    panelEl.style.border = "1px solid #444";
+    panelEl.style.color = "#fff";
+    panelEl.style.overflowY = "auto";
+    panelEl.style.zIndex = "10";
+    panelEl.style.padding = "8px";
+    panelEl.style.fontSize = "12px";
 
+    panelEl.innerHTML = `<b>Rules in MOD</b><hr/>`;
+
+    const rules = getRuleBlocks(ws);
+
+    rules.forEach((block, index) => {
       const item = document.createElement("div");
-      item.textContent = `${index}. ${block.getFieldValue("NAME") || "Unnamed Rule"}`;
+      item.style.padding = "6px";
       item.style.cursor = "pointer";
-      item.style.padding = "4px";
+      item.style.borderBottom = "1px solid #333";
+      item.textContent = `Rule ${index + 1}`;
 
-      item.onclick = () => {
-        ws.centerOnBlock(block.id);
-        panel.style.display = "none";
-      };
+      item.addEventListener("click", () => {
+        focusBlock(ws, block);
+      });
 
-      panel.appendChild(item);
-      index++;
+      item.addEventListener("mouseenter", () => {
+        item.style.background = "#333";
+      });
+      item.addEventListener("mouseleave", () => {
+        item.style.background = "transparent";
+      });
+
+      panelEl.appendChild(item);
     });
+
+    toolboxDiv.parentElement.appendChild(panelEl);
   }
 
-  plugin.initializeWorkspace = function () {
-    waitForBlocklyReady((ws) => {
-      const toolboxDiv = document.querySelector(".blocklyToolboxDiv");
-      if (!toolboxDiv) return;
+  /* --------------------------------------------------
+     Add toggle button next to toolbox
+  -------------------------------------------------- */
+  function createButton(ws) {
+    if (buttonEl) return;
 
-      const btn = createToggleButton(toolboxDiv);
-      const panel = createPanel();
+    const toolboxDiv = document.querySelector(".blocklyToolboxDiv");
+    if (!toolboxDiv) return;
 
-      btn.onclick = () => {
-        listRules(ws, panel);
-        panel.style.display =
-          panel.style.display === "none" ? "block" : "none";
-      };
+    const parent = toolboxDiv.parentElement;
+    parent.style.position = "relative";
 
-      console.info("[Rule Navigator] Initialized safely");
+    buttonEl = document.createElement("button");
+    buttonEl.textContent = "Rules";
+    buttonEl.style.position = "absolute";
+    buttonEl.style.top = "8px";
+    buttonEl.style.right = "-52px";
+    buttonEl.style.width = "48px";
+    buttonEl.style.height = "24px";
+    buttonEl.style.fontSize = "11px";
+    buttonEl.style.cursor = "pointer";
+
+    /* Behind toolbox */
+    buttonEl.style.zIndex = "1";
+    toolboxDiv.style.zIndex = "2";
+
+    buttonEl.addEventListener("click", () => {
+      createPanel(ws);
     });
+
+    parent.appendChild(buttonEl);
+  }
+
+  /* --------------------------------------------------
+     Init
+  -------------------------------------------------- */
+  plugin.initializeWorkspace = function () {
+    try {
+      const ws = getWorkspace();
+      if (!ws) return;
+
+      createButton(ws);
+      console.info("[RulesNavigator] Initialized");
+    } catch (e) {
+      console.error("[RulesNavigator] Init failed:", e);
+    }
   };
 })();

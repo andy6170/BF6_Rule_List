@@ -1,44 +1,73 @@
 (function () {
   const pluginId = "bf-rule-list-plugin";
-  const plugin = BF2042Portal.Plugins.getPlugin(pluginId);
 
-  /* -----------------------------------------------------
-     Utility: get all rule blocks in the current MOD
-     (top-level rule blocks only)
-  ----------------------------------------------------- */
-  function getRuleBlocks(ws) {
-    return ws.getTopBlocks(false).filter(b => b.type === "ruleBlock");
+  function getWorkspace() {
+    return _Blockly?.getMainWorkspace?.() || _Blockly?.getMainWorkspace?.();
   }
 
-  /* -----------------------------------------------------
-     Pan workspace to a block
-  ----------------------------------------------------- */
-  function focusBlock(ws, block) {
-    const metrics = ws.getMetrics();
-    const scale = ws.scale || 1;
+  /* ---------------------------
+     Find MOD + Rules
+  ---------------------------- */
+  function getRulesFromMod(ws) {
+    const topBlocks = ws.getTopBlocks(false);
 
-    const x = block.getRelativeToSurfaceXY().x;
-    const y = block.getRelativeToSurfaceXY().y;
+    // Find the MOD block (adjust type if needed)
+    const modBlock = topBlocks.find(b => b.type === "modBlock" || b.type === "MOD");
 
-    const targetX = x * scale - metrics.viewWidth / 2;
-    const targetY = y * scale - metrics.viewHeight / 2;
+    if (!modBlock) return [];
 
-    if (ws.scrollbar) {
-      ws.scrollbar.set(targetX, targetY);
+    const rules = [];
+    const input = modBlock.getInput("RULES") || modBlock.getInput("ACTIONS");
+
+    if (!input || !input.connection) return [];
+
+    let block = input.connection.targetBlock();
+    let index = 1;
+
+    while (block) {
+      rules.push({
+        index,
+        block,
+        name: block.getFieldValue("RULE_NAME") || `Rule ${index}`
+      });
+      index++;
+      block = block.getNextBlock();
     }
+
+    return rules;
   }
 
-  /* -----------------------------------------------------
-     UI: Rule List Modal
-  ----------------------------------------------------- */
-  function openRuleListUI(ws) {
-    // Backdrop
-    const backdrop = document.createElement("div");
-    backdrop.style.cssText = `
+  /* ---------------------------
+     Center Workspace on Block
+  ---------------------------- */
+  function focusBlock(ws, block) {
+    const xy = block.getRelativeToSurfaceXY();
+    const scale = ws.scale;
+    const metrics = ws.getMetrics();
+
+    const x = (xy.x * scale) - (metrics.viewWidth / 2);
+    const y = (xy.y * scale) - (metrics.viewHeight / 2);
+
+    ws.scrollbar.set(x, y);
+    block.select();
+  }
+
+  /* ---------------------------
+     UI Window
+  ---------------------------- */
+  function openRuleList() {
+    const ws = getWorkspace();
+    if (!ws) return;
+
+    const rules = getRulesFromMod(ws);
+
+    // Overlay
+    const overlay = document.createElement("div");
+    overlay.style.cssText = `
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.4);
-      z-index: 10000;
+      background: rgba(0,0,0,0.3);
+      z-index: 9999;
     `;
 
     // Panel
@@ -48,127 +77,76 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 420px;
+      width: 320px;
       max-height: 70vh;
       background: #1e1e1e;
-      color: #fff;
-      border-radius: 6px;
+      border-radius: 8px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
-      font-family: Arial, sans-serif;
+      color: #fff;
+      font-family: sans-serif;
     `;
 
-    // Header
-    const header = document.createElement("div");
-    header.textContent = "Rule List";
-    header.style.cssText = `
-      padding: 10px 14px;
-      font-weight: bold;
-      border-bottom: 1px solid #333;
-    `;
-
-    // List
     const list = document.createElement("div");
     list.style.cssText = `
-      padding: 8px;
-      overflow-y: auto;
       flex: 1;
+      overflow-y: auto;
+      margin-bottom: 10px;
     `;
 
-    const rules = getRuleBlocks(ws);
+    let selected = null;
 
-    if (rules.length === 0) {
-      const empty = document.createElement("div");
-      empty.textContent = "No rules found in this MOD.";
-      empty.style.opacity = "0.7";
-      list.appendChild(empty);
-    } else {
-      rules.forEach((rule, index) => {
-        const item = document.createElement("div");
-        item.style.cssText = `
-          padding: 6px 8px;
-          border-radius: 4px;
-          cursor: pointer;
-        `;
-        item.textContent = `${index + 1}. ${rule.getFieldValue("NAME") || "Unnamed Rule"}`;
+    rules.forEach(r => {
+      const item = document.createElement("div");
+      item.textContent = `${r.index}. ${r.name}`;
+      item.style.cssText = `
+        padding: 6px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+      `;
 
-        item.addEventListener("mouseenter", () => {
-          item.style.background = "#2a2a2a";
-        });
-        item.addEventListener("mouseleave", () => {
-          item.style.background = "transparent";
-        });
-        item.addEventListener("click", () => {
-          focusBlock(ws, rule);
-          document.body.removeChild(backdrop);
-        });
+      item.onclick = () => {
+        if (selected) selected.style.background = "";
+        item.style.background = "#8b6cff55"; // light purple
+        selected = item;
+        focusBlock(ws, r.block);
+      };
 
-        list.appendChild(item);
-      });
-    }
+      list.appendChild(item);
+    });
 
-    // Footer
-    const footer = document.createElement("div");
-    footer.style.cssText = `
-      padding: 10px;
-      border-top: 1px solid #333;
-      display: flex;
-      justify-content: flex-end;
-    `;
-
-    const closeBtn = document.createElement("button");
-    closeBtn.textContent = "Close";
-    closeBtn.style.cssText = `
-      padding: 6px 14px;
+    const close = document.createElement("button");
+    close.textContent = "Close";
+    close.style.cssText = `
+      align-self: flex-end;
+      padding: 6px 12px;
       cursor: pointer;
     `;
-    closeBtn.onclick = () => document.body.removeChild(backdrop);
+    close.onclick = () => overlay.remove();
 
-    footer.appendChild(closeBtn);
-
-    panel.appendChild(header);
     panel.appendChild(list);
-    panel.appendChild(footer);
-    backdrop.appendChild(panel);
-    document.body.appendChild(backdrop);
+    panel.appendChild(close);
+    overlay.appendChild(panel);
 
-    // Click outside closes
-    backdrop.addEventListener("click", (e) => {
-      if (e.target === backdrop) {
-        document.body.removeChild(backdrop);
-      }
-    });
+    overlay.onclick = e => {
+      if (e.target === overlay) overlay.remove();
+    };
+
+    document.body.appendChild(overlay);
   }
 
-  /* -----------------------------------------------------
-     Context Menu Item
-  ----------------------------------------------------- */
-  const ruleListMenuItem = {
-    id: "bfRuleList",
+  /* ---------------------------
+     Context Menu
+  ---------------------------- */
+  _Blockly.ContextMenuRegistry.registry.register({
+    id: "bf-rule-list",
     displayText: "Rule List",
     preconditionFn: () => "enabled",
-    callback: () => {
-      const ws = _Blockly.getMainWorkspace();
-      if (ws) openRuleListUI(ws);
-    },
+    callback: openRuleList,
     scopeType: _Blockly.ContextMenuRegistry.ScopeType.WORKSPACE,
     weight: 95
-  };
+  });
 
-  /* -----------------------------------------------------
-     Init
-  ----------------------------------------------------- */
-  plugin.initializeWorkspace = function () {
-    try {
-      const registry = _Blockly.ContextMenuRegistry.registry;
-      if (registry.getItem(ruleListMenuItem.id)) {
-        registry.unregister(ruleListMenuItem.id);
-      }
-      registry.register(ruleListMenuItem);
-
-      console.info("[RuleListPlugin] Initialized");
-    } catch (e) {
-      console.error("[RuleListPlugin] Init failed:", e);
-    }
-  };
+  console.info("[RuleListPlugin] Loaded");
 })();

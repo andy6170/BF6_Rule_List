@@ -126,20 +126,21 @@
     item.onclick = () => {
   panel.style.display = "none";
 
-  // Get absolute workspace position (accounts for MOD parent)
-  const pos = block.getRelativeToSurfaceXY();
+  // Find the MOD parent
+  let mod = block;
+  while (mod && mod.getSurroundParent()) {
+    mod = mod.getSurroundParent();
+  }
 
-  const metrics = ws.getMetrics();
-  const scale = ws.scale;
+  if (!mod || mod.type !== "modBlock") return;
 
-  // Calculate scroll so block is centered in view
-  const targetX =
-    pos.x * scale - metrics.viewWidth / 2 + block.width * scale / 2;
-  const targetY =
-    pos.y * scale - metrics.viewHeight / 2 + block.height * scale / 2;
+  // ✅ Center on the MOD (this is the key fix)
+  ws.centerOnBlock(mod.id);
 
-  ws.scroll(targetX, targetY);
-  block.select();
+  // Small timeout ensures scrolling finishes before selection
+  setTimeout(() => {
+    block.select();
+  }, 0);
 };
 
 

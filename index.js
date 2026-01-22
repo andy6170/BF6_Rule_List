@@ -1,152 +1,129 @@
 (function () {
-  const pluginId = "bf-rule-list-plugin";
+  const pluginId = "bf-rule-navigator";
+  const plugin = BF2042Portal.Plugins.getPlugin(pluginId);
 
-  function getWorkspace() {
-    return _Blockly?.getMainWorkspace?.() || _Blockly?.getMainWorkspace?.();
+  function waitForBlocklyReady(cb) {
+    const interval = setInterval(() => {
+      try {
+        if (window._Blockly && _Blockly.getMainWorkspace?.()) {
+          clearInterval(interval);
+          cb(_Blockly.getMainWorkspace());
+        }
+      } catch (_) {}
+    }, 100);
   }
 
-  /* ---------------------------
-     Find MOD + Rules
-  ---------------------------- */
-  function getRulesFromMod(ws) {
-    const topBlocks = ws.getTopBlocks(false);
+  function createPanel() {
+    let panel = document.getElementById("bfRulePanel");
+    if (panel) return panel;
 
-    // Find the MOD block (adjust type if needed)
-    const modBlock = topBlocks.find(b => b.type === "modBlock" || b.type === "MOD");
-
-    if (!modBlock) return [];
-
-    const rules = [];
-    const input = modBlock.getInput("RULES") || modBlock.getInput("ACTIONS");
-
-    if (!input || !input.connection) return [];
-
-    let block = input.connection.targetBlock();
-    let index = 1;
-
-    while (block) {
-      rules.push({
-        index,
-        block,
-        name: block.getFieldValue("RULE_NAME") || `Rule ${index}`
-      });
-      index++;
-      block = block.getNextBlock();
-    }
-
-    return rules;
-  }
-
-  /* ---------------------------
-     Center Workspace on Block
-  ---------------------------- */
-  function focusBlock(ws, block) {
-    const xy = block.getRelativeToSurfaceXY();
-    const scale = ws.scale;
-    const metrics = ws.getMetrics();
-
-    const x = (xy.x * scale) - (metrics.viewWidth / 2);
-    const y = (xy.y * scale) - (metrics.viewHeight / 2);
-
-    ws.scrollbar.set(x, y);
-    block.select();
-  }
-
-  /* ---------------------------
-     UI Window
-  ---------------------------- */
-  function openRuleList() {
-    const ws = getWorkspace();
-    if (!ws) return;
-
-    const rules = getRulesFromMod(ws);
-
-    // Overlay
-    const overlay = document.createElement("div");
-    overlay.style.cssText = `
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.3);
-      z-index: 9999;
-    `;
-
-    // Panel
-    const panel = document.createElement("div");
+    panel = document.createElement("div");
+    panel.id = "bfRulePanel";
     panel.style.cssText = `
-      position: absolute;
+      position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 320px;
+      width: 420px;
       max-height: 70vh;
       background: #1e1e1e;
-      border-radius: 8px;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
       color: #fff;
-      font-family: sans-serif;
-    `;
-
-    const list = document.createElement("div");
-    list.style.cssText = `
-      flex: 1;
+      border: 1px solid #444;
+      padding: 10px;
       overflow-y: auto;
-      margin-bottom: 10px;
+      z-index: 1000;
+      display: none;
     `;
-
-    let selected = null;
-
-    rules.forEach(r => {
-      const item = document.createElement("div");
-      item.textContent = `${r.index}. ${r.name}`;
-      item.style.cssText = `
-        padding: 6px 8px;
-        border-radius: 4px;
-        cursor: pointer;
-      `;
-
-      item.onclick = () => {
-        if (selected) selected.style.background = "";
-        item.style.background = "#8b6cff55"; // light purple
-        selected = item;
-        focusBlock(ws, r.block);
-      };
-
-      list.appendChild(item);
-    });
 
     const close = document.createElement("button");
     close.textContent = "Close";
     close.style.cssText = `
-      align-self: flex-end;
+      position: sticky;
+      bottom: 0;
+      margin-top: 10px;
       padding: 6px 12px;
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
       cursor: pointer;
+      float: right;
     `;
-    close.onclick = () => overlay.remove();
+    close.onclick = () => (panel.style.display = "none");
 
-    panel.appendChild(list);
     panel.appendChild(close);
-    overlay.appendChild(panel);
-
-    overlay.onclick = e => {
-      if (e.target === overlay) overlay.remove();
-    };
-
-    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+    return panel;
   }
 
-  /* ---------------------------
-     Context Menu
-  ---------------------------- */
-  _Blockly.ContextMenuRegistry.registry.register({
-    id: "bf-rule-list",
-    displayText: "Rule List",
-    preconditionFn: () => "enabled",
-    callback: openRuleList,
-    scopeType: _Blockly.ContextMenuRegistry.ScopeType.WORKSPACE,
-    weight: 95
-  });
+  function scrollToBlock(ws, block) {
+    const xy = block.getRelativeToSurfaceXY();
+    const scale = ws.scale || 1;
 
-  console.info("[RuleListPlugin] Loaded");
+    ws.scrollbar.set(
+      xy.x * scale - ws.getMetrics().viewWidth / 2,
+      xy.y * scale - ws.getMetrics().viewHeight / 2
+    );
+  }
+
+  function listRules(ws, panel) {
+    panel.innerHTML = "<h3>Rules</h3>";
+
+    const rules = ws
+      .getTopBlocks(true)
+      .filter(b => b.type === "ruleBlock" && !b.isShadow());
+
+    let index = 1;
+
+    rules.forEach(block => {
+      const name =
+        block.getFieldValue("NAME") ||
+        block.getField("NAME")?.getText() ||
+        "Unnamed Rule";
+
+      const item = document.createElement("div");
+      item.textContent = `${index}. ${name}`;
+      item.style.cssText = `
+        padding: 6px;
+        margin: 2px 0;
+        cursor: pointer;
+        border-radius: 4px;
+      `;
+
+      item.onmouseenter = () =>
+        (item.style.background = "rgba(180,140,255,0.25)");
+      item.onmouseleave = () =>
+        (item.style.background = "transparent");
+
+      item.onclick = () => {
+        scrollToBlock(ws, block);
+        panel.style.display = "none";
+      };
+
+      panel.appendChild(item);
+      index++;
+    });
+  }
+
+  plugin.initializeWorkspace = function () {
+    waitForBlocklyReady(ws => {
+      const reg = _Blockly.ContextMenuRegistry.registry;
+
+      if (!reg.getItem("bfRuleList")) {
+        reg.register({
+          id: "bfRuleList",
+          displayText: "Rule List",
+          preconditionFn: () => "enabled",
+          callback: () => {
+            const panel = createPanel();
+            listRules(ws, panel);
+            panel.style.display = "block";
+          },
+          scopeType: _Blockly.ContextMenuRegistry.ScopeType.WORKSPACE,
+          weight: 90
+        });
+      }
+
+      console.info("[Rule Navigator] Initialized");
+    });
+  };
 })();

@@ -1,24 +1,30 @@
 (function () {
-  const pluginId = "bf-rule-navigator";
+  const pluginId = "bf-rule-list";
   const plugin = BF2042Portal.Plugins.getPlugin(pluginId);
 
-  function waitForBlocklyReady(cb) {
-    const interval = setInterval(() => {
+  /* -----------------------------------------------------
+     Helpers
+  ----------------------------------------------------- */
+  function waitForWorkspace(cb) {
+    const i = setInterval(() => {
       try {
         if (window._Blockly && _Blockly.getMainWorkspace?.()) {
-          clearInterval(interval);
+          clearInterval(i);
           cb(_Blockly.getMainWorkspace());
         }
       } catch (_) {}
     }, 100);
   }
 
+  /* -----------------------------------------------------
+     UI: Rule List Panel
+  ----------------------------------------------------- */
   function createPanel() {
-    let panel = document.getElementById("bfRulePanel");
+    let panel = document.getElementById("bfRuleListPanel");
     if (panel) return panel;
 
     panel = document.createElement("div");
-    panel.id = "bfRulePanel";
+    panel.id = "bfRuleListPanel";
     panel.style.cssText = `
       position: fixed;
       top: 50%;
@@ -29,101 +35,135 @@
       background: #1e1e1e;
       color: #fff;
       border: 1px solid #444;
-      padding: 10px;
-      overflow-y: auto;
-      z-index: 1000;
       display: none;
+      z-index: 10000;
+      box-shadow: 0 0 20px rgba(0,0,0,0.6);
+      font-family: sans-serif;
     `;
 
-    const close = document.createElement("button");
-    close.textContent = "Close";
-    close.style.cssText = `
-      position: sticky;
-      bottom: 0;
-      margin-top: 10px;
+    const header = document.createElement("div");
+    header.textContent = "Rule List";
+    header.style.cssText = `
+      padding: 10px;
+      font-weight: bold;
+      border-bottom: 1px solid #333;
+    `;
+
+    const list = document.createElement("div");
+    list.id = "bfRuleList";
+    list.style.cssText = `
+      padding: 8px;
+      overflow-y: auto;
+      max-height: calc(70vh - 90px);
+    `;
+
+    const footer = document.createElement("div");
+    footer.style.cssText = `
+      padding: 10px;
+      border-top: 1px solid #333;
+      text-align: right;
+    `;
+
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "Close";
+    closeBtn.style.cssText = `
       padding: 6px 12px;
-      background: #333;
+      background: #444;
       color: #fff;
-      border: 1px solid #555;
+      border: 1px solid #666;
       cursor: pointer;
-      float: right;
     `;
-    close.onclick = () => (panel.style.display = "none");
+    closeBtn.onclick = () => (panel.style.display = "none");
 
-    panel.appendChild(close);
+    footer.appendChild(closeBtn);
+    panel.appendChild(header);
+    panel.appendChild(list);
+    panel.appendChild(footer);
     document.body.appendChild(panel);
+
     return panel;
   }
 
-  function scrollToBlock(ws, block) {
-    const xy = block.getRelativeToSurfaceXY();
-    const scale = ws.scale || 1;
+  /* -----------------------------------------------------
+     Populate Rule List (MOD ONLY)
+  ----------------------------------------------------- */
+  function populateRules(ws, panel) {
+    const list = panel.querySelector("#bfRuleList");
+    list.innerHTML = "";
 
-    ws.scrollbar.set(
-      xy.x * scale - ws.getMetrics().viewWidth / 2,
-      xy.y * scale - ws.getMetrics().viewHeight / 2
-    );
-  }
-
-  function listRules(ws, panel) {
-    panel.innerHTML = "<h3>Rules</h3>";
-
-    const rules = ws
-      .getTopBlocks(true)
-      .filter(b => b.type === "ruleBlock" && !b.isShadow());
-
+    const topBlocks = ws.getTopBlocks(true);
     let index = 1;
 
-    rules.forEach(block => {
-      const name =
-        block.getFieldValue("NAME") ||
-        block.getField("NAME")?.getText() ||
+    topBlocks.forEach(block => {
+      if (block.type !== "ruleBlock") return;
+
+      const ruleName =
+        block.getFieldValue?.("NAME") ||
+        block.getFieldValue?.("RULE_NAME") ||
         "Unnamed Rule";
 
       const item = document.createElement("div");
-      item.textContent = `${index}. ${name}`;
+      item.textContent = `${index}. ${ruleName}`;
       item.style.cssText = `
         padding: 6px;
-        margin: 2px 0;
         cursor: pointer;
         border-radius: 4px;
       `;
 
-      item.onmouseenter = () =>
-        (item.style.background = "rgba(180,140,255,0.25)");
-      item.onmouseleave = () =>
-        (item.style.background = "transparent");
-
-      item.onclick = () => {
-        scrollToBlock(ws, block);
-        panel.style.display = "none";
+      item.onmouseenter = () => {
+        item.style.background = "#6f63b6";
+      };
+      item.onmouseleave = () => {
+        item.style.background = "transparent";
       };
 
-      panel.appendChild(item);
+      item.onclick = () => {
+        panel.style.display = "none";
+
+        // Correct centering logic (this is the key part)
+        ws.centerOnBlock(block.id);
+        ws.setSelected(block);
+      };
+
+      list.appendChild(item);
       index++;
     });
+
+    if (index === 1) {
+      list.innerHTML = `<div style="opacity:0.7;padding:6px;">No rules found in this MOD</div>`;
+    }
   }
 
+  /* -----------------------------------------------------
+     Context Menu Registration
+  ----------------------------------------------------- */
+  const ruleListMenuItem = {
+    id: "bfRuleListMenu",
+    displayText: "Rule List",
+    preconditionFn: () => "enabled",
+    callback: () => {
+      const ws = _Blockly.getMainWorkspace();
+      const panel = createPanel();
+      populateRules(ws, panel);
+      panel.style.display = "block";
+    },
+    scopeType: _Blockly.ContextMenuRegistry.ScopeType.WORKSPACE,
+    weight: 95
+  };
+
+  /* -----------------------------------------------------
+     Init
+  ----------------------------------------------------- */
   plugin.initializeWorkspace = function () {
-    waitForBlocklyReady(ws => {
-      const reg = _Blockly.ContextMenuRegistry.registry;
+    waitForWorkspace(() => {
+      const registry = _Blockly.ContextMenuRegistry.registry;
 
-      if (!reg.getItem("bfRuleList")) {
-        reg.register({
-          id: "bfRuleList",
-          displayText: "Rule List",
-          preconditionFn: () => "enabled",
-          callback: () => {
-            const panel = createPanel();
-            listRules(ws, panel);
-            panel.style.display = "block";
-          },
-          scopeType: _Blockly.ContextMenuRegistry.ScopeType.WORKSPACE,
-          weight: 90
-        });
+      if (registry.getItem(ruleListMenuItem.id)) {
+        registry.unregister(ruleListMenuItem.id);
       }
+      registry.register(ruleListMenuItem);
 
-      console.info("[Rule Navigator] Initialized");
+      console.info("[Rule List] Initialized");
     });
   };
 })();

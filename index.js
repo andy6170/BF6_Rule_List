@@ -123,6 +123,10 @@
       item.style.background = "transparent";
     };
 
+
+
+    
+
     item.onclick = () => {
   panel.style.display = "none";
 
@@ -133,37 +137,39 @@
   }
   if (!mod || mod.type !== "modBlock") return;
 
-  const ws = block.workspace;
+  // 2️⃣ Ensure MOD is expanded
+  if (mod.isCollapsed?.()) {
+    mod.setCollapsed(false);
+  }
 
-  // 2️⃣ Center on MOD FIRST
-  ws.centerOnBlock(mod.id);
+  // 3️⃣ Force Blockly to re-render layout
+  ws.render();
 
-  // 3️⃣ After centering, scroll relative to MOD
-  setTimeout(() => {
-    const modPos = mod.getRelativeToSurfaceXY();
-    const rulePos = block.getRelativeToSurfaceXY();
+  // 4️⃣ Wait one frame so coordinates are valid
+  requestAnimationFrame(() => {
+    const xy = block.getRelativeToSurfaceXY();
 
-    const scale = ws.scale;
+    // Guard against NaN (important!)
+    if (!isFinite(xy.x) || !isFinite(xy.y)) {
+      console.warn("[Rule List] Invalid block position", xy);
+      return;
+    }
+
     const metrics = ws.getMetrics();
+    const scale = ws.scale || 1;
 
-    const deltaX =
-      (rulePos.x - modPos.x) * scale +
-      block.width * scale / 2 -
-      metrics.viewWidth / 2;
+    const targetX =
+      xy.x * scale - metrics.viewWidth / 2 + block.width * scale / 2;
+    const targetY =
+      xy.y * scale - metrics.viewHeight / 2 + block.height * scale / 2;
 
-    const deltaY =
-      (rulePos.y - modPos.y) * scale +
-      block.height * scale / 2 -
-      metrics.viewHeight / 2;
+    ws.scroll(targetX, targetY);
 
-    ws.scroll(
-      metrics.scrollX + deltaX,
-      metrics.scrollY + deltaY
-    );
-
+    // 5️⃣ Select the rule block
     block.select();
-  }, 0);
+  });
 };
+
 
 
 

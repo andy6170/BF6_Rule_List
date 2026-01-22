@@ -130,45 +130,24 @@
     item.onclick = () => {
   panel.style.display = "none";
 
-  // 1️⃣ Find MOD parent
+  // 1️⃣ Find MOD parent and ensure it's expanded
   let mod = block;
   while (mod && mod.getSurroundParent()) {
     mod = mod.getSurroundParent();
   }
-  if (!mod || mod.type !== "modBlock") return;
-
-  // 2️⃣ Ensure MOD is expanded
-  if (mod.isCollapsed?.()) {
+  if (mod?.isCollapsed?.()) {
     mod.setCollapsed(false);
   }
 
-  // 3️⃣ Force Blockly to re-render layout
-  ws.render();
+  // 2️⃣ Select the rule FIRST (this updates Blockly internals)
+  block.select();
 
-  // 4️⃣ Wait one frame so coordinates are valid
+  // 3️⃣ Let Blockly finish layout, then center on the rule
   requestAnimationFrame(() => {
-    const xy = block.getRelativeToSurfaceXY();
-
-    // Guard against NaN (important!)
-    if (!isFinite(xy.x) || !isFinite(xy.y)) {
-      console.warn("[Rule List] Invalid block position", xy);
-      return;
-    }
-
-    const metrics = ws.getMetrics();
-    const scale = ws.scale || 1;
-
-    const targetX =
-      xy.x * scale - metrics.viewWidth / 2 + block.width * scale / 2;
-    const targetY =
-      xy.y * scale - metrics.viewHeight / 2 + block.height * scale / 2;
-
-    ws.scroll(targetX, targetY);
-
-    // 5️⃣ Select the rule block
-    block.select();
+    ws.centerOnBlock(block.id);
   });
 };
+
 
 
 

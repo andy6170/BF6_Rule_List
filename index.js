@@ -127,10 +127,10 @@
 
     
 
-    item.onclick = () => {
+   item.onclick = () => {
   panel.style.display = "none";
 
-  // 1️⃣ Expand MOD
+  // Expand MOD
   let mod = block;
   while (mod && mod.getSurroundParent()) {
     mod = mod.getSurroundParent();
@@ -139,14 +139,19 @@
     mod.setCollapsed(false);
   }
 
-  // 2️⃣ Select block (important for highlight)
+  // Let Blockly handle navigation exactly like search does
   block.select();
 
-  // 3️⃣ Let Blockly finish layout, then center
-  setTimeout(() => {
+  if (Blockly?.navigation?.focusBlock) {
+    Blockly.navigation.focusBlock(block);
+  } else if (Blockly?.search?.goToBlock) {
+    Blockly.search.goToBlock(block);
+  } else {
+    // absolute fallback
     ws.centerOnBlock(block.id);
-  }, 0);
+  }
 };
+
 
 
 
